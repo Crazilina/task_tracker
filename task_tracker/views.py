@@ -127,6 +127,11 @@ class TaskListAPIView(ListAPIView):
                               type=openapi.TYPE_INTEGER),
             openapi.Parameter('due_date', openapi.IN_QUERY, description="Дата выполнения задачи",
                               type=openapi.TYPE_STRING),
+            openapi.Parameter('subtasks', openapi.IN_QUERY, description="Фильтрация задач по наличию подзадач",
+                              type=openapi.TYPE_BOOLEAN),
+            openapi.Parameter('has_parent', openapi.IN_QUERY,
+                              description="Фильтрация задач по наличию родительской задачи",
+                              type=openapi.TYPE_BOOLEAN),
         ]
     )
     def get(self, request, *args, **kwargs):
@@ -135,18 +140,30 @@ class TaskListAPIView(ListAPIView):
     def get_queryset(self):
         queryset = super().get_queryset()
 
-        # Получаем список полей, по которым разрешена фильтрация
+        # Проверка на допустимость фильтров
         allowed_filters = set(self.filterset_fields)
-
-        # Получаем список полей, по которым был запрос на фильтрацию
-        requested_filters = set(self.request.query_params.keys())
-
-        # Ищем запрещенные фильтры
+        requested_filters = set(self.request.query_params.keys()) - {'subtasks', 'has_parent'}
         invalid_filters = requested_filters - allowed_filters
 
         if invalid_filters:
             raise ValidationError(f"Фильтрация по полю(-ям) {', '.join(invalid_filters)} невозможна. "
                                   f"Доступные поля для фильтрации: {', '.join(allowed_filters)}")
+
+        # Фильтрация по наличию подзадач
+        subtasks_param = self.request.query_params.get('subtasks')
+        if subtasks_param is not None:
+            if subtasks_param.lower() in ('true', '1'):
+                queryset = queryset.filter(subtasks__isnull=False).distinct()
+            elif subtasks_param.lower() in ('false', '0'):
+                queryset = queryset.filter(subtasks__isnull=True).distinct()
+
+        # Фильтрация по наличию родительской задачи
+        has_parent_param = self.request.query_params.get('has_parent')
+        if has_parent_param is not None:
+            if has_parent_param.lower() in ('true', '1'):
+                queryset = queryset.filter(parent_task__isnull=False)
+            elif has_parent_param.lower() in ('false', '0'):
+                queryset = queryset.filter(parent_task__isnull=True)
 
         return queryset
 

@@ -83,8 +83,13 @@ class BusyEmployeeSerializer(ModelSerializer):
 class TaskSerializer(ModelSerializer):
     """
     Сериализатор для модели Task.
-    Включает валидацию данных.
+    Включает валидацию данных и список подзадач, если задача является родительской.
     """
+    subtasks = SerializerMethodField()
+
+    def get_subtasks(self, task):
+        # Возвращаем только список ID подзадач
+        return task.subtasks.values_list('id', flat=True)
 
     def validate_due_date(self, value):
         if value < datetime.date.today():
@@ -93,7 +98,7 @@ class TaskSerializer(ModelSerializer):
 
     class Meta:
         model = Task
-        fields = '__all__'
+        fields = ['id', 'name', 'description', 'due_date', 'status', 'parent_task', 'assigned_to', 'subtasks']
 
 
 class ImportantTaskSerializer(ModelSerializer):

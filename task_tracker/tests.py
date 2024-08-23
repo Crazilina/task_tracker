@@ -483,6 +483,106 @@ class TaskAPITestCase(APITestCase):
         self.assertIsInstance(error_message, list)
         self.assertTrue(any("Фильтрация по полю(-ям)" in msg for msg in error_message))
 
+    def test_task_list_with_subtasks_filter_true(self):
+        """
+        Тест фильтрации задач, у которых есть подзадачи (subtasks=true).
+        """
+        # Создаем задачи для этого теста
+        parent_task = Task.objects.create(
+            name="Родительская задача",
+            assigned_to=self.employee,
+            due_date="2024-09-01",
+            status="new"
+        )
+        subtask = Task.objects.create(
+            name="Подзадача",
+            parent_task=parent_task,
+            assigned_to=self.employee,
+            due_date="2024-09-02",
+            status="new"
+        )
+
+        url = reverse("task_tracker:task-list")
+        response = self.client.get(url, {'subtasks': 'true'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        data = response.json()
+        self.assertEqual(len(data), 1)  # Ожидаем, что будет возвращена только родительская задача
+        self.assertEqual(data[0]['id'], parent_task.id)
+
+    def test_task_list_with_subtasks_filter_false(self):
+        """
+        Тест фильтрации задач, у которых нет подзадач (subtasks=false).
+        """
+        task_without_subtasks = Task.objects.create(
+            name="Задача без подзадач",
+            assigned_to=self.employee,
+            due_date="2024-09-05",
+            status="new"
+        )
+
+        url = reverse("task_tracker:task-list")
+        response = self.client.get(url, {'subtasks': 'false'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        data = response.json()
+        self.assertEqual(len(data), 1)  # Должны быть задачи без подзадач
+        task_ids = [task['id'] for task in data]
+        self.assertIn(task_without_subtasks.id, task_ids)
+
+    def test_task_list_with_has_parent_filter_true(self):
+        """
+        Тест фильтрации задач, у которых есть родительская задача (has_parent=true).
+        """
+        parent_task = Task.objects.create(
+            name="Родительская задача",
+            assigned_to=self.employee,
+            due_date="2024-09-01",
+            status="new"
+        )
+        subtask = Task.objects.create(
+            name="Подзадача",
+            parent_task=parent_task,
+            assigned_to=self.employee,
+            due_date="2024-09-02",
+            status="new"
+        )
+
+        url = reverse("task_tracker:task-list")
+        response = self.client.get(url, {'has_parent': 'true'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        data = response.json()
+        self.assertEqual(len(data), 1)  # Ожидаем, что будет возвращена только подзадача
+        self.assertEqual(data[0]['id'], subtask.id)
+
+    def test_task_list_with_has_parent_filter_false(self):
+        """
+        Тест фильтрации задач, у которых нет родительской задачи (has_parent=false).
+        """
+        parent_task = Task.objects.create(
+            name="Родительская задача",
+            assigned_to=self.employee,
+            due_date="2024-09-01",
+            status="new"
+        )
+        task_without_subtasks = Task.objects.create(
+            name="Задача без подзадач",
+            assigned_to=self.employee,
+            due_date="2024-09-05",
+            status="new"
+        )
+
+        url = reverse("task_tracker:task-list")
+        response = self.client.get(url, {'has_parent': 'false'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        data = response.json()
+        self.assertEqual(len(data), 2)  # Должны быть задачи без родительской задачи
+        task_ids = [task['id'] for task in data]
+        self.assertIn(parent_task.id, task_ids)
+        self.assertIn(task_without_subtasks.id, task_ids)
+
 
 class ImportantTasksListAPITestCase(APITestCase):
     """
